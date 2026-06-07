@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI智能导题刷题系统</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f2f4f7; display:flex; justify-content:center; min-height:100vh; }
+        .app-container { width:100%; max-width:420px; background:white; min-height:100vh; position:relative; box-shadow:0 0 20px rgba(0,0,0,0.05); margin:0 auto; }
+        @media (min-width: 768px) {
+            body { padding: 20px 0; }
+            .app-container { border-radius: 20px; margin:20px auto; min-height: calc(100vh - 40px); }
+        }
+        .page { display:none; padding:16px 16px 80px 16px; min-height:100vh; }
+        .page.active { display:block; }
+        .header { font-size:20px; font-weight:700; margin-bottom:20px; color:#1e293b; display:flex; justify-content:space-between; align-items:center; }
+        .btn { display:inline-block; width:100%; padding:14px; border:none; border-radius:14px; font-size:16px; font-weight:600; margin-bottom:12px; background:#4f46e5; color:white; text-align:center; cursor:pointer; transition: all 0.2s; }
+        .btn:active { transform:scale(0.98); opacity:0.9; }
+        .btn.secondary { background:#10b981; }
+        .btn.danger { background:#ef4444; }
+        .btn.warn { background:#f59e0b; color:white; }
+        .btn.ai { background:#8b5cf6; color:white; }
+        .btn.outline { background:white; color:#4f46e5; border:1.5px solid #4f46e5; }
+        .btn.small { width:auto; padding:8px 14px; font-size:14px; }
+        .question-card { background:white; border-radius:14px; padding:16px; margin-bottom:12px; box-shadow:0 2px 10px rgba(0,0,0,0.03); position:relative; display:flex; gap:12px; }
+        .checkbox-col { display:flex; align-items:flex-start; padding-top:4px; }
+        .checkbox-col input { transform:scale(1.4); accent-color:#4f46e5; margin-top:2px; }
+        .content-col { flex:1; }
+        .option { padding:16px; background:#f8fafc; border-radius:12px; margin:8px 0; cursor:pointer; border:2px solid transparent; transition:all 0.2s; font-size:17px; text-align:center; }
+        .option:active { background:#eef2ff; }
+        .option.correct { border-color:#10b981; background:#ecfdf5; }
+        .option.wrong { border-color:#ef4444; background:#fef2f2; }
+        .delete-btn { position:absolute; top:10px; right:10px; background:#ef4444; color:white; border:none; border-radius:8px; padding:5px 12px; font-size:13px; cursor:pointer; z-index:2; }
+        .delete-btn:active { background:#dc2626; }
+        .footer-tabs { position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:420px; background:white; display:flex; border-top:1px solid #e2e8f0; padding:8px 0 10px; z-index:10; backdrop-filter:blur(8px); }
+        .tab-item { flex:1; text-align:center; font-size:12px; color:#94a3b8; cursor:pointer; padding:6px 0; transition:color 0.2s; }
+        .tab-item.active { color:#4f46e5; font-weight:600; }
+        .tab-icon { font-size:22px; display:block; margin-bottom:2px; }
+        .input, .textarea { width:100%; padding:12px; border:1.5px solid #e2e8f0; border-radius:10px; font-size:15px; margin-bottom:8px; background:#f8fafc; }
+        .input:focus, .textarea:focus { outline:none; border-color:#4f46e5; background:white; }
+        .chip { display:inline-block; background:#eef2ff; color:#4f46e5; padding:5px 14px; border-radius:20px; font-size:13px; margin:4px; cursor:pointer; border:1px solid transparent; }
+        .chip.active-tag { background:#4f46e5; color:white; }
+        .flex-row { display:flex; gap:10px; flex-wrap:wrap; }
+        .select-all-btn { background:#e2e8f0; color:#1e293b; padding:6px 14px; border-radius:8px; font-size:13px; cursor:pointer; border:none; }
+        .ocr-text-box { background:#fffbeb; border-left:4px solid #f59e0b; padding:12px; margin-bottom:12px; font-size:14px; border-radius:0 10px 10px 0; max-height:150px; overflow-y:auto; white-space:pre-wrap; }
+        .ai-fix-button { background:#8b5cf6; color:white; padding:8px 18px; border:none; border-radius:10px; margin-bottom:14px; cursor:pointer; font-size:14px; }
+        .answer-tag { background:#10b981; color:white; padding:3px 10px; border-radius:12px; font-size:12px; margin-left:8px; }
+        .essay-textarea { width:100%; min-height:90px; border:1.5px solid #e2e8f0; border-radius:10px; padding:12px; font-size:15px; margin:10px 0; }
+        .practice-stem { font-weight:600; font-size:18px; margin-bottom:24px; color:#0f172a; }
+        .practice-options { display:flex; flex-direction:column; margin-bottom:20px; }
+        .practice-answer { margin-top:20px; background:#f0fdf4; border-radius:12px; padding:16px; border:1px solid #bbf7d0; }
+        .practice-buttons { display:flex; gap:10px; margin-top:24px; }
+        .modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.4); display:none; justify-content:center; align-items:center; z-index:100; }
+        .modal-content { background:white; width:90%; max-width:400px; border-radius:20px; padding:24px; }
+        .modal-textarea { width:100%; height:150px; border:1.5px solid #e2e8f0; border-radius:12px; padding:14px; font-size:15px; resize:vertical; }
+    </style>
+</head>
+<body>
+<div class="app-container" id="app">
+    <!-- 首页 -->
+    <div class="page active" id="homePage">
+        <div class="header">📚 AI智能导题</div>
+        <button class="btn secondary" onclick="triggerFileInput()">📄 文档导题 (PDF/Word/TXT)</button>
+        <button class="btn warn" onclick="showTextImportModal()">🔤 文字导题</button>
+        <button class="btn outline" onclick="switchPage('historyPage')">🕘 导题记录</button>
+        <input type="file" id="fileInput" style="display:none" accept=".pdf,.doc,.docx,.txt,text/plain" onchange="handleFileSelect(event)">
+    </div>
+
+    <!-- 导题结果编辑页 -->
+    <div class="page" id="resultPage">
+        <div class="header">识别结果 <button class="select-all-btn" onclick="toggleSelectAllResult()">☑️ 全选</button></div>
+        <div id="previewContainer"></div>
+        <div id="parsedTextContainer"></div>
+        <button class="ai-fix-button" onclick="aiSmartFix()">🤖 AI智能修正</button>
+        <div id="resultQuestions"></div>
+        <div class="flex-row">
+            <button class="btn" style="flex:1" onclick="importAllToBank()">✅ 导入题库</button>
+            <button class="btn danger" style="flex:1" onclick="batchDeleteResult()">🗑️ 批量删除</button>
+        </div>
+        <button class="btn outline" onclick="switchPage('homePage')">返回</button>
+    </div>
+
+    <!-- 导题历史 -->
+    <div class="page" id="historyPage">
+        <div class="header">导题记录</div>
+        <div id="historyList">暂无记录</div>
+        <button class="btn outline" onclick="switchPage('homePage')">返回首页</button>
+    </div>
+
+    <!-- 题库页 -->
+    <div class="page" id="bankPage">
+        <div class="header">📦 题库 <button class="select-all-btn" onclick="toggleSelectAllBank()">☑️ 全选</button></div>
+        <input class="input" placeholder="搜索题目" id="searchInput" oninput="renderBank()">
+        <div class="flex-row" style="margin-bottom:10px" id="tagContainer">
+            <span class="chip active-tag" onclick="filterTag='';renderBank();highlightChip(this)">全部</span>
+            <span class="chip" onclick="filterTag='地理';renderBank();highlightChip(this)">地理</span>
+            <span class="chip" onclick="filterTag='常识';renderBank();highlightChip(this)">常识</span>
+            <span class="chip" onclick="filterTag='天文';renderBank();highlightChip(this)">天文</span>
+            <span class="chip" onclick="filterTag='物理';renderBank();highlightChip(this)">物理</span>
+            <span class="chip" onclick="filterTag='化学';renderBank();highlightChip(this)">化学</span>
+            <span class="chip" onclick="filterTag='判断';renderBank();highlightChip(this)">判断</span>
+            <span class="chip" onclick="filterTag='简答';renderBank();highlightChip(this)">简答</span>
+        </div>
+        <div id="bankList"></div>
+        <div class="flex-row" style="margin-top:10px">
+            <button class="btn danger" style="flex:1" onclick="batchDeleteBank()">🗑️ 批量删除所选</button>
+        </div>
+        <button class="btn danger" onclick="clearAllQuestions()" style="margin-top:8px">🗑️ 一键清空题库</button>
+    </div>
+
+    <!-- 刷题页（上下布局） -->
+    <div class="page" id="practicePage">
+        <div class="header">📝 刷题</div>
+        <div class="flex-row" style="margin-bottom:16px">
+            <button class="btn" style="flex:1" onclick="setPracticeMode('order')">顺序</button>
+            <button class="btn" style="flex:1" onclick="setPracticeMode('random')">乱序</button>
+            <button class="btn" style="flex:1" onclick="setPracticeMode('recite')">背题</button>
+        </div>
+        <div id="practiceQuestion" style="display:none">
+            <div class="practice-stem" id="pqStem"></div>
+            <div class="practice-options" id="pqOptions"></div>
+            <div class="practice-answer" id="pqAnswer" style="display:none"></div>
+            <div class="practice-buttons" id="pqButtons">
+                <button class="btn" onclick="nextPracticeQuestion()" id="nextBtn" style="flex:1">下一题</button>
+                <button class="btn outline" onclick="toggleAnswer()" id="toggleAnswerBtn" style="flex:1">显示答案</button>
+            </div>
+        </div>
+        <div id="practiceEmpty" style="color:#94a3b8;text-align:center;margin-top:40px">题库暂无题目，先去导题吧！</div>
+    </div>
+
+    <!-- 错题本 -->
+    <div class="page" id="wrongPage">
+        <div class="header">❌ 错题本</div>
+        <div id="wrongList"></div>
+        <div class="flex-row" style="margin-top:10px">
+            <button class="btn" onclick="redoWrong()" style="flex:1">重做错题</button>
+            <button class="btn danger" onclick="clearWrong()" style="flex:1">清空错题</button>
+        </div>
+    </div>
+
+    <!-- 我的 -->
+    <div class="page" id="profilePage">
+        <div class="header">👤 学习统计</div>
+        <div class="question-card" style="display:block">
+            <div style="font-size:16px;font-weight:500">今日统计</div>
+            <div style="margin-top:12px">做题数量：<span id="todayCount">0</span></div>
+            <div>正确率：<span id="correctRate">0%</span></div>
+            <div>错题数量：<span id="totalWrong">0</span></div>
+        </div>
+    </div>
+
+    <!-- 底部导航 -->
+    <div class="footer-tabs">
+        <div class="tab-item active" onclick="switchTab('homePage', this)"><span class="tab-icon">🏠</span>导题</div>
+        <div class="tab-item" onclick="switchTab('bankPage', this)"><span class="tab-icon">📖</span>题库</div>
+        <div class="tab-item" onclick="switchTab('practicePage', this)"><span class="tab-icon">✏️</span>刷题</div>
+        <div class="tab-item" onclick="switchTab('wrongPage', this)"><span class="tab-icon">📋</span>错题</div>
+        <div class="tab-item" onclick="switchTab('profilePage', this)"><span class="tab-icon">👤</span>统计</div>
+    </div>
+</div>
+
+<!-- 文字导题弹窗 -->
+<div class="modal-overlay" id="textImportModal">
+    <div class="modal-content">
+        <h3 style="margin-bottom:16px">🔤 文字导题</h3>
+        <textarea class="modal-textarea" id="textImportArea" placeholder="土的含水量是指土中水质量与土总质量之比。(×)
+1. 地球是圆的（ √ ）
+2. 光速比声速快（ × ）
+3. 中国的首都是（ B ）A.上海 B.北京 C.广州 D.深圳
+4. 水的化学式是？答：H2O"></textarea>
+        <div class="flex-row" style="margin-top:14px">
+            <button class="btn" style="flex:1" onclick="startTextImport()">🔍 开始识别</button>
+            <button class="btn outline" style="flex:1" onclick="closeTextImportModal()">取消</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function(){
+    // ========== 全局状态 ==========
+    const STORAGE_KEY = 'exam_app_public_v1';
+    let appData = { questions:[], wrongIds:[], history:[], todayDone:0, todayCorrect:0 };
+    let selectedBankIds = new Set();
+    let selectedResultIndexes = new Set();
+    let tempImportQuestions = [];
+    let currentFileInfo = null;
+    let currentOCRText = '';
+    let filterTag = '';
+    let practiceMode = 'order', practiceQueue = [], currentPracticeIndex = 0;
+    let essaySubmitted = false;
+
+    function loadData() { try { const saved = localStorage.getItem(STORAGE_KEY); if(saved) appData = JSON.parse(saved); } catch(e){} }
+    function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); }
+    function resetData() {
+        appData = {
+            questions: [
+                { id:'1', stem:'中国的首都是？', type:'single', options:['A. 上海','B. 北京','C. 广州','D. 深圳'], answer:'B', analysis:'首都为北京', tags:['地理'] },
+                { id:'2', stem:'以下哪个是哺乳动物？', type:'single', options:['A. 鳄鱼','B. 青蛙','C. 鲸鱼','D. 蛇'], answer:'C', analysis:'鲸鱼是哺乳动物', tags:['常识'] },
+                { id:'3', stem:'水的化学式是？', type:'fill', answer:'H2O', analysis:'水是H2O', tags:['化学'] },
+                { id:'4', stem:'地球是圆的。', type:'judge', options:['√','×'], answer:'√', analysis:'地球是球体', tags:['判断'] },
+                { id:'5', stem:'什么是光合作用？', type:'essay', answer:'植物利用光能合成有机物。', analysis:'光合作用是自然界重要的生化过程', tags:['简答'] }
+            ], wrongIds:[], history:[], todayDone:0, todayCorrect:0
+        };
+        saveData();
+    }
+
+    function getAnswerIndex(q) {
+        if (!q.answer) return 0;
+        if (q.type === 'judge') return (q.answer.trim() === '√' || q.answer.trim() === '✓') ? 0 : 1;
+        if (q.type === 'single' && /^[A-Da-d]$/.test(q.answer)) return q.answer.toUpperCase().charCodeAt(0)-65;
+        return parseInt(q.answer) || 0;
+    }
+    function getCorrectAnswerText(q) {
+        if (q.type === 'judge') return q.answer.trim()==='√'?'√':'×';
+        if (q.type === 'single' && q.options?.length) { const idx = getAnswerIndex(q); return q.options[idx] || q.answer; }
+        return q.answer || '未知';
+    }
+
+    // 删除
+    window.clearAllQuestions = function() { if(confirm('清空所有题目、错题本及记录？')) { appData.questions=[]; appData.wrongIds=[]; appData.history=[]; selectedBankIds.clear(); saveData(); renderBank(); renderWrong(); renderHistory(); } };
+    window.deleteQuestion = function(id) { if(!confirm('删除此题？')) return; appData.questions = appData.questions.filter(q=>q.id!==id); appData.wrongIds = appData.wrongIds.filter(i=>i!==id); selectedBankIds.delete(id); saveData(); renderBank(); if(document.getElementById('wrongPage').classList.contains('active')) renderWrong(); };
+    window.batchDeleteBank = function() { if(selectedBankIds.size===0) return alert('请勾选题目'); if(!confirm(`删除选中的${selectedBankIds.size}道题？`)) return; const ids = [...selectedBankIds]; appData.questions = appData.questions.filter(q=>!ids.includes(q.id)); appData.wrongIds = appData.wrongIds.filter(i=>!ids.includes(i)); selectedBankIds.clear(); saveData(); renderBank(); renderWrong(); };
+    window.batchDeleteResult = function() { if(selectedResultIndexes.size===0) return alert('请勾选'); if(!confirm(`删除选中的${selectedResultIndexes.size}道题？`)) return; const indexes = [...selectedResultIndexes].sort((a,b)=>b-a); indexes.forEach(i=>tempImportQuestions.splice(i,1)); selectedResultIndexes.clear(); renderResultQuestions(); };
+
+    // 解析
+    async function parseDocumentFile(file) {
+        const ext = file.name.split('.').pop().toLowerCase();
+        if(ext==='txt'||file.type==='text/plain') return await new Promise((resolve,reject)=>{ const r=new FileReader(); r.onload=e=>resolve(e.target.result); r.onerror=reject; r.readAsText(file); });
+        if(ext==='pdf') { const buffer=await file.arrayBuffer(); const pdf=await pdfjsLib.getDocument({data:buffer}).promise; let t=''; for(let i=1;i<=pdf.numPages;i++){ const page=await pdf.getPage(i); const content=await page.getTextContent(); t+=content.items.map(it=>it.str).join(' ')+'\n'; } return t; }
+        if(ext==='docx'||ext==='doc') { const buffer=await file.arrayBuffer(); const res=await mammoth.extractRawText({arrayBuffer:buffer}); return res.value; }
+        throw new Error('不支持的文件格式');
+    }
+
+    // 核心解析（判断题识别）
+    function smartParseQuestions(text) {
+        if(!text||!text.trim()) return [];
+        const lines = text.split(/\n/).map(s=>s.trim()).filter(s=>s.length>0);
+        let questions = [];
+        let current = null, collectingEssay = false;
+        const questionStartRe = /^(\d+)[\.\、\s]|^[（(](\d+)[）)]|^第\s*(\d+)\s*题/i;
+        const answerLineRe = /答案[：:]\s*(.+)/i, analysisLineRe = /解析[：:]\s*(.+)/i, shortAnswerRe = /答[：:]\s*(.*)/i;
+        function extractOptionsFromLine(line) {
+            let opts = [];
+            const splitRe = /([A-Da-d][\.\、\s\)]|\([A-Da-d]\)|[①②③④⑤⑥])/g;
+            const parts = line.split(splitRe).filter(s=>s.trim().length>0);
+            let label='', content='';
+            for(let part of parts) {
+                if(/^[A-Da-d][\.\、\s\)]$|^\([A-Da-d]\)$|^[①②③④⑤⑥]$/.test(part)) {
+                    if(label&&content.trim()) opts.push(`${label} ${content.trim()}`);
+                    label=part; content='';
+                } else content+=part;
+            }
+            if(label&&content.trim()) opts.push(`${label} ${content.trim()}`);
+            return opts.length? opts : (line.match(/^([A-Da-d])[\.\、\s]+(.+)/) ? [`${RegExp.$1}. ${RegExp.$2}`] : []);
+        }
+        function isJudgeByStem(stem) { return /[（(]\s*[√×✓✗]\s*[）)]|【\s*[√×✓✗]\s*】/.test(stem) || /判断|对错/.test(stem); }
+        function extractInlineAnswerAndClean(stemObj) {
+            for(let p of [/[（(]\s*答案[：:]\s*([A-Da-d])\s*[）)]/i, /[【]\s*([A-Da-d])\s*[】]/, /[（(]\s*([A-Da-d])\s*[）)]/i, /正确答案[：:]\s*([A-Da-d])/i]) {
+                const m = stemObj.stem.match(p); if(m) { const l=m[1].toUpperCase(); stemObj.stem=stemObj.stem.replace(m[1],'').replace(/\s{2,}/g,' ').trim(); stemObj.stem=stemObj.stem.replace(/（\s*）/g,'（ ）').replace(/【\s*】/g,'【】').replace(/\(\s*\)/g,'( )'); return l; }
+            }
+            for(let p of [/[（(]\s*([√×✓✗])\s*[）)]/i, /[【]\s*([√×✓✗])\s*[】]/, /正确答案[：:]\s*([√×✓✗])/i]) {
+                const m = stemObj.stem.match(p); if(m) { const s=m[1].replace('✓','√').replace('✗','×'); stemObj.stem=stemObj.stem.replace(m[1],'').replace(/\s{2,}/g,' ').trim(); stemObj.stem=stemObj.stem.replace(/（\s*）/g,'（ ）').replace(/【\s*】/g,'【】').replace(/\(\s*\)/g,'( )'); return s; }
+            }
+            return null;
+        }
+        for(let line of lines) {
+            if(collectingEssay) {
+                if(questionStartRe.test(line)||answerLineRe.test(line)||analysisLineRe.test(line)) collectingEssay=false;
+                else { current.answer += '\n'+line; continue; }
+            }
+            const qMatch = line.match(questionStartRe);
+            if(qMatch) {
+                if(current) {
+                    if(!current.answer) { const a=extractInlineAnswerAndClean(current); if(a) current.answer=a; }
+                    if(isJudgeByStem(current.stem) && !current.type) current.type='judge';
+                    if(current.type==='judge') { current.options=['√','×']; if(!current.answer||(current.answer!=='√'&&current.answer!=='×')) current.answer='√'; }
+                    else if(current.type==='essay') current.options=[];
+                    else if(current.options.length>0) { current.type='single'; if(!current.answer) current.answer=current.options[0].charAt(0); }
+                    else current.type='fill';
+                    questions.push(current);
+                }
+                const stemPart = line.replace(questionStartRe,'').trim();
+                current = { stem:stemPart, options:[], answer:null, analysis:null };
+                if(/^判断[：:题]?/i.test(stemPart)) { current.type='judge'; current.stem=stemPart.replace(/^判断[：:题]?\s*/i,'').trim(); }
+                else if(/^简答[：:题]?|^问答[：:题]?/i.test(stemPart)) { current.type='essay'; current.stem=stemPart.replace(/^(简答|问答)[：:题]?\s*/i,'').trim(); }
+                continue;
+            }
+            if(!current && /[（(]\s*[√×✓✗]\s*[）)]|【\s*[√×✓✗]\s*】/.test(line)) { current = { stem:line, options:[], answer:null, analysis:null }; continue; }
+            if(!current) continue;
+            if(shortAnswerRe.test(line)) { const m=line.match(shortAnswerRe); current.answer=(m[1]||'').trim(); current.type='essay'; current.stem=current.stem.replace(/答[：:]\s*.+$/i,'').trim(); collectingEssay=true; continue; }
+            if(answerLineRe.test(line)) { let a=line.match(answerLineRe)[1].trim(); current.answer=/^[A-Da-d]$/.test(a)?a.toUpperCase():/^[√×✓✗]$/.test(a)?a.replace('✓','√').replace('✗','×'):a; continue; }
+            if(analysisLineRe.test(line)) { current.analysis=line.match(analysisLineRe)[1].trim(); continue; }
+            const extracted = extractOptionsFromLine(line);
+            if(extracted.length>0) { current.options.push(...extracted); if(!current.type||current.type==='fill') current.type='single'; }
+            else if(current.options.length===0) current.stem += ' '+line;
+        }
+        if(current) {
+            if(!current.answer) { const a=extractInlineAnswerAndClean(current); if(a) current.answer=a; }
+            if(isJudgeByStem(current.stem) && !current.type) current.type='judge';
+            if(current.type==='judge') { current.options=['√','×']; if(!current.answer||(current.answer!=='√'&&current.answer!=='×')) current.answer='√'; }
+            else if(current.type==='essay') current.options=[];
+            else if(current.options.length>0) { current.type='single'; if(!current.answer) current.answer=current.options[0].charAt(0); }
+            else current.type='fill';
+            questions.push(current);
+        }
+        if(!questions.length) questions = fallbackAI(text);
+        return questions.map((q,idx)=>({
+            id:Date.now().toString()+Math.random().toString(36).slice(2,6)+idx,
+            stem:q.stem||'未识别题干', type:q.type||'single', options:q.options||[], answer:q.answer||(q.type==='single'?'A':''),
+            analysis:q.analysis||'', tags:q.tags||(q.type==='judge'?['判断']:q.type==='essay'?['简答']:['通用']),
+            difficulty:1, isFavorite:false, note:''
+        }));
+    }
+    function fallbackAI(text) {
+        const lower = text.toLowerCase();
+        if(lower.includes('首都')||lower.includes('北京')) return [{ stem:'中国的首都是？', type:'single', options:['A. 上海','B. 北京','C. 广州','D. 深圳'], answer:'B', tags:['地理'] }];
+        if(lower.includes('判断')||lower.includes('√')||lower.includes('×')) return [{ stem:'地球是圆的。', type:'judge', options:['√','×'], answer:'√', tags:['判断'] }];
+        if(lower.includes('答:')||lower.includes('答：')) return [{ stem:'什么是光合作用？', type:'essay', answer:'植物利用光能合成有机物', tags:['简答'] }];
+        return [{ stem:'以下哪个不是可再生能源？', type:'single', options:['A. 太阳能','B. 风能','C. 煤炭','D. 水能'], answer:'C', tags:['常识'] }];
+    }
+
+    // AI修正
+    window.aiSmartFix = async function() {
+        if(!currentOCRText) return alert('无文本');
+        const btn = document.querySelector('.ai-fix-button'); btn.disabled=true; btn.innerText='⏳ AI思考中...';
+        await new Promise(r=>setTimeout(r,600));
+        tempImportQuestions = smartParseQuestions(currentOCRText) || fallbackAI(currentOCRText);
+        selectedResultIndexes.clear(); renderResultQuestions();
+        btn.disabled=false; btn.innerText='🤖 AI智能修正';
+    };
+
+    // 文件/文字导题
+    window.triggerFileInput = function() { document.getElementById('fileInput').click(); };
+    window.handleFileSelect = async function(event) {
+        const file = event.target.files[0]; if(!file) return;
+        switchPage('resultPage');
+        document.getElementById('previewContainer').innerHTML='<div style="text-align:center;padding:20px;">⏳ 解析中...</div>';
+        document.getElementById('parsedTextContainer').innerHTML=''; document.getElementById('resultQuestions').innerHTML='';
+        let rawText='';
+        try { rawText = await parseDocumentFile(file); document.getElementById('previewContainer').innerHTML=`<div style="background:#e8f0fe;padding:20px;border-radius:12px;">📄 ${file.name} (解析成功)</div>`; }
+        catch(e) { document.getElementById('previewContainer').innerHTML=`<div style="color:#ef4444;">${e.message}</div>`; }
+        currentOCRText = rawText; currentFileInfo = { name:file.name, type:file.type };
+        document.getElementById('parsedTextContainer').innerHTML = rawText ? `<div class="ocr-text-box"><b>🔍 提取文本：</b><br>${rawText.substring(0,400)}</div>` : '';
+        tempImportQuestions = smartParseQuestions(rawText);
+        selectedResultIndexes.clear(); renderResultQuestions();
+        event.target.value = '';
+    };
+    window.showTextImportModal = function() { document.getElementById('textImportModal').style.display='flex'; };
+    window.closeTextImportModal = function() { document.getElementById('textImportModal').style.display='none'; };
+    window.startTextImport = async function() {
+        const text = document.getElementById('textImportArea').value.trim();
+        if(!text) return alert('请输入文本');
+        closeTextImportModal();
+        switchPage('resultPage');
+        document.getElementById('previewContainer').innerHTML='<div style="background:#f1f5f9;padding:14px;border-radius:10px;">📝 手动输入文本</div>';
+        document.getElementById('parsedTextContainer').innerHTML='';
+        currentOCRText = text; tempImportQuestions = smartParseQuestions(text); currentFileInfo = { name:'文字输入', type:'text' };
+        selectedResultIndexes.clear(); renderResultQuestions();
+    };
+
+    // 结果页渲染
+    function renderResultQuestions() {
+        document.getElementById('resultQuestions').innerHTML = tempImportQuestions.map((q,idx)=>{
+            const checked = selectedResultIndexes.has(idx)?'checked':'';
+            const isChoice=q.type==='single', isJudge=q.type==='judge', isEssay=q.type==='essay';
+            let optsHtml = (isChoice||isJudge) ? `<div style="margin-top:6px;"><b>选项：</b>${q.options.map((opt,i)=>`<div><input class="input" value="${opt}" onchange="updateOption(${idx},${i},this.value)"></div>`).join('')}</div>` : '';
+            let ansHtml = isEssay ? `<textarea class="textarea" onchange="updateTempQ(${idx},'answer',this.value)">${q.answer||''}</textarea>` : `<input class="input" value="${q.answer}" onchange="updateTempQ(${idx},'answer',this.value)" style="width:80px;display:inline-block;">`;
+            return `<div class="question-card">
+                <div class="checkbox-col"><input type="checkbox" ${checked} onchange="toggleResultCheck(${idx})"></div>
+                <div class="content-col">
+                    <div style="font-size:13px;color:#64748b;">${isJudge?'判断题':isChoice?'单选题':isEssay?'简答题':'填空题'}</div>
+                    <div style="margin-top:4px;"><b>题干：</b><input class="input" value="${q.stem}" onchange="updateTempQ(${idx},'stem',this.value)"></div>
+                    ${optsHtml}
+                    <div style="margin-top:8px;"><b>答案：</b>${ansHtml} ${q.answer?`<span class="answer-tag">✅ ${q.answer}</span>`:''}</div>
+                    <div style="margin-top:6px;"><b>解析：</b><input class="input" value="${q.analysis||''}" onchange="updateTempQ(${idx},'analysis',this.value)"></div>
+                    <button class="btn danger small" style="margin-top:8px;" onclick="deleteTempQ(${idx})">删除此题</button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+    window.toggleResultCheck = idx => { selectedResultIndexes.has(idx) ? selectedResultIndexes.delete(idx) : selectedResultIndexes.add(idx); };
+    window.toggleSelectAllResult = () => {
+        if(selectedResultIndexes.size===tempImportQuestions.length) selectedResultIndexes.clear();
+        else for(let i=0;i<tempImportQuestions.length;i++) selectedResultIndexes.add(i);
+        renderResultQuestions();
+    };
+    window.updateTempQ = (i,f,v) => { tempImportQuestions[i][f]=v; };
+    window.updateOption = (qi,oi,v) => { tempImportQuestions[qi].options[oi]=v; };
+    window.deleteTempQ = idx => { tempImportQuestions.splice(idx,1); selectedResultIndexes.clear(); renderResultQuestions(); };
+    window.importAllToBank = () => {
+        if(!tempImportQuestions.length) return alert('没有题目可导入');
+        appData.questions.push(...tempImportQuestions);
+        appData.history.push({ id:Date.now().toString(), time:new Date().toLocaleString(), fileName:currentFileInfo?.name||'未知', count:tempImportQuestions.length });
+        saveData(); tempImportQuestions=[]; selectedResultIndexes.clear();
+        alert('成功导入题库！'); switchTab('homePage', document.querySelector('.tab-item[onclick*="homePage"]'));
+    };
+
+    // 历史
+    function renderHistory() {
+        document.getElementById('historyList').innerHTML = appData.history.length ? appData.history.slice().reverse().map(h=>`
+            <div class="question-card"><div><b>📄 ${h.fileName}</b></div><div style="font-size:12px;">${h.time} · ${h.count}道</div><button class="btn outline small" onclick="reuseHistory('${h.id}')">🔄 再次使用</button></div>
+        `).join('') : '<div style="color:#94a3b8;">暂无记录</div>';
+    }
+    window.reuseHistory = (id) => {
+        const hist = appData.history.find(h=>h.id===id); if(!hist) return;
+        const existing = appData.questions.filter(q=>hist.ids?.includes(q.id));
+        if(!existing.length) return alert('原题目已删除');
+        tempImportQuestions = JSON.parse(JSON.stringify(existing)); currentFileInfo = { name:hist.fileName };
+        switchPage('resultPage'); document.getElementById('previewContainer').innerHTML=`<div style="background:#e8f0fe;padding:20px;">📄 历史：${hist.fileName}</div>`;
+        selectedResultIndexes.clear(); renderResultQuestions();
+    };
+
+    // 题库
+    function renderBank() {
+        const keyword = document.getElementById('searchInput')?.value?.toLowerCase()||'';
+        let list = appData.questions; if(filterTag) list = list.filter(q=>(q.tags||[]).includes(filterTag)); if(keyword) list = list.filter(q=>q.stem.toLowerCase().includes(keyword));
+        document.getElementById('bankList').innerHTML = list.map(q=>{
+            const checked = selectedBankIds.has(q.id)?'checked':'';
+            return `<div class="question-card">
+                <div class="checkbox-col"><input type="checkbox" ${checked} onchange="toggleBankCheck('${q.id}')"></div>
+                <div class="content-col">
+                    <button class="delete-btn" onclick="deleteQuestion('${q.id}')">🗑</button>
+                    <div style="font-weight:600;">${q.stem}</div>
+                    <div style="font-size:12px;color:#64748b;">${q.type==='judge'?'判断':q.type==='essay'?'简答':q.type==='single'?'单选':'填空'} · 难度${q.difficulty}</div>
+                    <div style="margin:8px 0;">${(q.tags||[]).map(t=>`<span class="chip">${t}</span>`).join('')}</div>
+                    <div style="color:#10b981;">✔ ${getCorrectAnswerText(q)}</div>
+                    <div class="flex-row" style="margin-top:8px;">
+                        <button class="btn outline small" onclick="toggleFav('${q.id}')">${q.isFavorite?'❤️':'🤍'}</button>
+                        <button class="btn outline small" onclick="editNote('${q.id}')">📝</button>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+    window.toggleBankCheck = id => { selectedBankIds.has(id) ? selectedBankIds.delete(id) : selectedBankIds.add(id); };
+    window.toggleSelectAllBank = () => {
+        const keyword = document.getElementById('searchInput')?.value?.toLowerCase()||'';
+        let list = appData.questions; if(filterTag) list = list.filter(q=>(q.tags||[]).includes(filterTag)); if(keyword) list = list.filter(q=>q.stem.toLowerCase().includes(keyword));
+        const ids = list.map(q=>q.id); const allSelected = ids.every(id=>selectedBankIds.has(id));
+        allSelected ? ids.forEach(id=>selectedBankIds.delete(id)) : ids.forEach(id=>selectedBankIds.add(id));
+        renderBank();
+    };
+    window.toggleFav = id => { const q=appData.questions.find(q=>q.id===id); if(q){q.isFavorite=!q.isFavorite; saveData(); renderBank();} };
+    window.editNote = id => { const q=appData.questions.find(q=>q.id===id); if(!q) return; const note=prompt('笔记',q.note||''); if(note!==null){q.note=note; saveData(); renderBank();} };
+    window.highlightChip = el => { document.querySelectorAll('#tagContainer .chip').forEach(c=>c.classList.remove('active-tag')); el.classList.add('active-tag'); };
+
+    // 刷题
+    function initPractice() {
+        if(!appData.questions.length) { document.getElementById('practiceEmpty').style.display='block'; document.getElementById('practiceQuestion').style.display='none'; return; }
+        document.getElementById('practiceEmpty').style.display='none'; document.getElementById('practiceQuestion').style.display='block';
+        practiceQueue = [...appData.questions]; if(practiceMode==='random') practiceQueue.sort(()=>Math.random()-0.5);
+        currentPracticeIndex=0; showPracticeQuestion();
+    }
+    window.setPracticeMode = m => { practiceMode=m; initPractice(); };
+    function showPracticeQuestion() {
+        if(practiceQueue.length===0||currentPracticeIndex>=practiceQueue.length) { alert('题目已做完'); switchTab('bankPage',document.querySelector('[onclick*="bankPage"]')); return; }
+        const q = practiceQueue[currentPracticeIndex];
+        document.getElementById('pqStem').innerText = q.stem;
+        const optDiv = document.getElementById('pqOptions'), toggleBtn = document.getElementById('toggleAnswerBtn');
+        essaySubmitted = false;
+        if(q.type==='essay') {
+            optDiv.innerHTML = `<textarea class="essay-textarea" id="essayInput" placeholder="请输入你的答案..."></textarea><button class="btn" onclick="submitEssay()">提交答案</button>`;
+            toggleBtn.style.display='none'; document.getElementById('pqAnswer').style.display='none';
+        } else if(q.options?.length) {
+            optDiv.innerHTML = q.options.map((opt,i)=>`<div class="option" onclick="selectOption(${i})">${opt}</div>`).join('');
+            toggleBtn.style.display='inline-block'; toggleBtn.innerText='显示答案'; document.getElementById('pqAnswer').style.display='none';
+        } else {
+            optDiv.innerHTML = '<div style="color:#64748b;padding:10px;">填空题（思考后查看答案）</div>';
+            toggleBtn.style.display='inline-block'; toggleBtn.innerText='显示答案'; document.getElementById('pqAnswer').style.display='none';
+        }
+    }
+    window.submitEssay = () => {
+        const q = practiceQueue[currentPracticeIndex]; const input = document.getElementById('essayInput'); if(!input) return;
+        essaySubmitted = true; const ans = document.getElementById('pqAnswer'); ans.style.display='block';
+        ans.innerHTML = `<b>你的答案：</b><br>${input.value||'(空)'}<br><br><b>标准答案：</b><br>${q.answer.replace(/\n/g,'<br>')}`;
+        document.getElementById('pqOptions').innerHTML='<div style="color:#64748b;">答案已提交</div>'; document.getElementById('toggleAnswerBtn').style.display='none';
+        appData.todayDone++; saveData();
+    };
+    window.nextPracticeQuestion = () => {
+        if(practiceQueue[currentPracticeIndex]?.type==='essay' && !essaySubmitted) { alert('请先提交答案'); return; }
+        currentPracticeIndex++; showPracticeQuestion();
+    };
+    window.selectOption = (index) => {
+        const q = practiceQueue[currentPracticeIndex]; if(!q.options?.length) return;
+        const correctIdx = getAnswerIndex(q);
+        document.querySelectorAll('.option').forEach((el,i)=>{ el.classList.remove('correct','wrong'); if(i===correctIdx) el.classList.add('correct'); else if(i===index) el.classList.add('wrong'); });
+        appData.todayDone++;
+        if(index===correctIdx) { appData.todayCorrect++; if(appData.wrongIds.includes(q.id)) appData.wrongIds = appData.wrongIds.filter(id=>id!==q.id); }
+        else if(!appData.wrongIds.includes(q.id)) appData.wrongIds.push(q.id);
+        saveData();
+        document.getElementById('pqAnswer').style.display='block'; document.getElementById('pqAnswer').innerHTML = `<b>正确答案：${q.options[correctIdx]||q.answer}</b>`;
+        document.getElementById('toggleAnswerBtn').innerText='隐藏答案';
+    };
+    window.toggleAnswer = () => {
+        const ans = document.getElementById('pqAnswer'), q = practiceQueue[currentPracticeIndex];
+        if(ans.style.display==='none') { ans.style.display='block'; document.getElementById('toggleAnswerBtn').innerText='隐藏答案';
+            if((!q.options?.length) && ans.innerHTML==='') { ans.innerHTML = `<b>正确答案：${q.answer.replace(/\n/g,'<br>')}</b>`; appData.todayDone++; saveData(); } }
+        else { ans.style.display='none'; document.getElementById('toggleAnswerBtn').innerText='显示答案'; }
+    };
+
+    // 错题本
+    function renderWrong() {
+        const wrongQs = appData.questions.filter(q=>appData.wrongIds.includes(q.id));
+        document.getElementById('wrongList').innerHTML = wrongQs.length ? wrongQs.map(q=>`<div class="question-card"><div><b>${q.stem}</b></div><div style="white-space:pre-wrap;">✔ ${getCorrectAnswerText(q)}</div></div>`).join('') : '<div style="color:#94a3b8;margin-top:20px;">✅ 暂无错题</div>';
+    }
+    window.redoWrong = () => {
+        if(!appData.wrongIds.length) return alert('没有错题');
+        practiceQueue = appData.questions.filter(q=>appData.wrongIds.includes(q.id)); practiceMode='order'; currentPracticeIndex=0;
+        switchPage('practicePage'); document.getElementById('practiceEmpty').style.display='none'; document.getElementById('practiceQuestion').style.display='block'; showPracticeQuestion();
+    };
+    window.clearWrong = () => { if(confirm('清空错题？')) { appData.wrongIds=[]; saveData(); renderWrong(); } };
+
+    // 统计
+    function renderProfile() {
+        document.getElementById('todayCount').innerText = appData.todayDone;
+        document.getElementById('correctRate').innerText = appData.todayDone ? Math.round((appData.todayCorrect/appData.todayDone)*100)+'%' : '0%';
+        document.getElementById('totalWrong').innerText = appData.wrongIds.length;
+    }
+
+    // 页面切换
+    window.switchPage = (pageId) => {
+        document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+        document.getElementById(pageId).classList.add('active');
+        if(pageId==='historyPage') renderHistory(); else if(pageId==='bankPage') renderBank();
+        else if(pageId==='wrongPage') renderWrong(); else if(pageId==='profilePage') renderProfile();
+        else if(pageId==='practicePage') initPractice();
+    };
+    window.switchTab = (pageId, tabEl) => { switchPage(pageId); document.querySelectorAll('.tab-item').forEach(t=>t.classList.remove('active')); tabEl.classList.add('active'); };
+
+    document.getElementById('textImportModal').addEventListener('click', e => { if(e.target===e.currentTarget) closeTextImportModal(); });
+
+    loadData(); if(!appData.questions.length) resetData();
+    window.addEventListener('DOMContentLoaded', ()=>{ renderHistory(); renderBank(); renderWrong(); renderProfile(); });
+})();
+</script>
+</body>
+</html>
